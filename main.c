@@ -20,12 +20,36 @@ void beep()
         }
 }
 
+void timer_init(void)
+{
+        /* prescaler of 1024 */
+        TCCR2 |= (1 << CS20) | (1 << CS21) | (1 << CS22);
+        /* clear on compare match; clear timer on compare match */
+        TCCR2 |= (1 << COM21) | (1 << WGM21);
+        OCR2 = 194; /* count up 195 ticks */
+
+        /* clear on compare */
+        TCCR1B |= (1 << WGM12);
+
+        /* prescaler of 1024 */
+        TCCR1B |= (1 << CS12);
+
+        /* TODO: calculate counter */
+        OCR1A = 123;
+        OCR1B = 321; 
+
+        TIMSK |= (1 << TOIE1) | (1 << TOIE2);
+
+        sei();
+}
+
 void ioinit()
 {
         int ubrr_val = (F_CPU)/(8*BAUD) - 1;
         usart_init(ubrr_val);
         leds_init();
         DDRD |= (1 << PD6); // Buzzer
+        timer_init();
 }
 
 int main() 
