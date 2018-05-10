@@ -4,6 +4,9 @@
 
 void usart_init(unsigned int ubrr)
 {
+        DDRD &= ~(1 << PD0);
+        DDRD |= (1 << PD1);
+
         /* set baud rate */
         UBRRH = (unsigned char) (ubrr >> 8);
         UBRRL = (unsigned char) ubrr;
