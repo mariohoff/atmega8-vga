@@ -82,12 +82,6 @@ void timer_init(void)
         //TIFR |= (1 << OCF2) | (1 << OCF1A);
         TCCR2 |= (1 << CS20) | (1 << CS21) | (1 << CS22);
 
-        /*TCCR1A |= (1 << WGM10) | (1 << COM1A1) | (1 << COM1B1);
-        TCCR1B |= (1 << WGM12) | (1 << CS11);
-
-        OCR1A = 47;
-        OCR1B = 5;*/
-
         TCCR1A |= (1 << WGM12) | (1 << WGM11) | (1 << COM1B1);
         TCCR1B |= (1 << WGM12) | (1 << WGM13) | (1 << CS11);
 
@@ -142,9 +136,9 @@ int main()
         unsigned char val = 0;
 
         while(1) {
-                /*do_one_scan_line();
+                do_one_scan_line();
                 sleep_cpu();
-                sleep_enable();*/
+                sleep_enable();
         }
 
         return 1;
