@@ -5,7 +5,7 @@
 #include <util/delay.h>
 #include <stdio.h>
 
-#include "usart.h"
+//#include "usart.h"
 #include "screenfont.h"
 
 #define F_CPU 12000000UL
@@ -81,22 +81,22 @@ void do_one_scan_line()
                 return;
 
 
-        const register uint8_t *line_ptr = &screen_font[(vline >> 1) & 0x07][0];
+        //const register uint8_t *line_ptr = &screen_font[(vline >> 1) & 0x07][0];
         register char *message_ptr = &(message[message_line][0]);
         
         register uint8_t i = horizontal_bytes;
 
-        UCSRB |= (1 << TXEN);
+        //UCSRB |= (1 << TXEN);
 
         while(i--) {
-                //PORTD = *message_ptr++;
-                UDR = pgm_read_byte(line_ptr + (*message_ptr++));
+                PORTD = *message_ptr++;
+                //UDR = pgm_read_byte(line_ptr + (*message_ptr++));
         }
 
-        while(!(UCSRA & (1 << TXC)))
+        /*while(!(UCSRA & (1 << TXC)))
         {}
 
-        UCSRB &= ~(1 << TXEN);
+        UCSRB &= ~(1 << TXEN);*/
 
 
         vline++;
@@ -108,13 +108,13 @@ void do_one_scan_line()
 void ioinit()
 {
         timer_init();
-        usart_init(0);
+        //usart_init(0);
         //leds_init();
         
         /* timer interrupt related pins */
         DDRB |= (1 << PB0) | (1 << PB1) | (1 << PB2) | (1 << PB3); 
         /* rgb pins */
-        //DDRD |= (1 << RED_PIN) | (1 << GREEN_PIN) | (1 << BLUE_PIN);
+        DDRD |= (1 << RED_PIN) | (1 << GREEN_PIN) | (1 << BLUE_PIN);
 
         set_sleep_mode(SLEEP_MODE_IDLE);
 }
@@ -122,9 +122,15 @@ void ioinit()
 int main() 
 {
         /* initial message */
-        int j;
-        for(j = 0; j < vertical_lines; j++)
-                sprintf(message[j], "%03i - hello!", i);
+        int x,y;
+        /*for(j = 0; j < vertical_lines; j++)
+                sprintf(message[j], "%03i - hello!", i);*/
+        for(y = 0; y < vertical_lines; y++) {
+                for(x = 0; x < horizontal_bytes; x++) {
+                        message[y][x] = (x+y) << 4;
+                }
+        }
+
 
         ioinit();
         sei();
