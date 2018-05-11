@@ -4,7 +4,6 @@
 #include <avr/sleep.h>
 #include <util/delay.h>
 
-#include "usart.h"
 //#include "leds.h"
 #include "screenfont.h"
 
@@ -49,16 +48,19 @@ uint8_t i;
 
 ISR(TIMER2_COMP_vect) /* vertical pulses */
 {
+        sleep_disable();
         PORTB |= (1 << PB0);
         _delay_us(64);
         PORTB &= ~(1 << PB0);
-}
-
-ISR(TIMER1_COMP_vect) /* horizontal pulses */
-{
+        
         vline = 0;
         message_line = 0;
         backporch_lines_togo = V_BACKPORCH_LINES;
+}
+
+ISR(TIMER1_COMPA_vect) /* horizontal pulses */
+{
+        sleep_disable();
 }
 
 void beep()
@@ -93,13 +95,27 @@ void timer_init(void)
 
 void ioinit()
 {
-        int ubrr_val = (F_CPU)/(8*BAUD) - 1;
-        usart_init(ubrr_val);
+        timer_init();
         //leds_init();
+        
         DDRD |= (1 << PD6); // Buzzer
         DDRB |= (1 << PB0) | (1 << PB1) | (1 << PB2) | (1 << PB3);
 
-        timer_init();
+        /* initialize uart */
+        DDRD |= (1 << PD1);
+        DDRD &= ~(1 << PD0);
+        PORTD |= (1 << PD0);
+
+        int ubrr_val = 255; 
+        UBRRH = 0;
+        UBRRL = 0;
+
+        PORTD |= (1 << PD4);
+        /* enable receiver and transmitter */
+        UCSRB = 0;
+        UCSRC |= (1 << UMSEL) | (1 << UCSZ0) | (1 << UCPOL);
+        
+        set_sleep_mode(SLEEP_MODE_IDLE);
 }
 
 void do_one_scan_line()
@@ -115,14 +131,39 @@ void do_one_scan_line()
         const register uint8_t * line_ptr = &screen_font[(vline >> 1) & 0x07][0];
         register char * message_ptr = &(message[message_line][0]);
 
-        register uint8_t i = HORIZONTAL_BYTES;
+        uint8_t i = HORIZONTAL_BYTES;
 
-        while(i--) 
-                usart_transmit(pgm_read_byte(line_ptr + (* message_ptr++)));
+        UCSRB |= (1 << TXEN);
+
+        while(i--) {
+                //usart_transmit(pgm_read_byte(line_ptr + (* message_ptr++)));
+                UDR = pgm_read_byte(line_ptr + (* message_ptr++));
+        }
+
+        while(!(UCSRA & (1 << TXC)))
+        {}
+
+        UCSRB = 0;
 
         vline++;
+
         if((vline & 0x0F) == 0)
                 message_line++;
+}
+
+void do_toggle_led()
+{
+        UCSRB |= (1 << TXEN);
+        UDR = 0xAA;
+        while(!(UCSRA & (1 << TXC)))
+        {}
+        UCSRB &= ~(1 << TXEN);
+
+        /*uint8_t j;
+        for(j = 0; j < 50; j++) {
+                PORTD |= (1 << PD7);
+                PORTD &= ~(1 << PD7);
+        }*/
 }
 
 
@@ -130,12 +171,10 @@ int main()
 {
         i = 0;
         ioinit();
-        set_sleep_mode(SLEEP_MODE_IDLE);
-        usart_transmit(0x01);
-
-        unsigned char val = 0;
+        _delay_us(500); // let settings settle
 
         while(1) {
+                //do_toggle_led();
                 do_one_scan_line();
                 sleep_cpu();
                 sleep_enable();
