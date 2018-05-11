@@ -8,7 +8,7 @@ CLOCK      = 12000000UL            # 8Mhz int Osc
 PROGRAMMER = -c usbasp
 #PROGRAMMER = -c arduino -b 19200 -P /dev/ttyUSB0  # For using Adafruit USBtiny
 #PROGRAMMER = -c arduino
-OBJECTS    = main.o     # Add more objects for each .c file here
+OBJECTS    = main.o usart.o    # Add more objects for each .c file here
 
 # fuse settings:
 # use http://www.engbedded.com/fusecalc

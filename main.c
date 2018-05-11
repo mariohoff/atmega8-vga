@@ -3,46 +3,36 @@
 #include <avr/pgmspace.h>
 #include <avr/sleep.h>
 #include <util/delay.h>
+#include <stdio.h>
 
-//#include "leds.h"
+#include "usart.h"
 #include "screenfont.h"
 
 #define F_CPU 12000000UL
 #define BAUD 9600UL
-//#define MYUBRR ((F_CPU+BAUD*8)/(BAUD*16)-1)
 
-#define VGA_WIDTH 640
-#define VGA_HEIGHT 480
-//#define HORIZONTAL_BYTES (640/8/4) /* 160 pixels wide */
-#define HORIZONTAL_BYTES 20
-#define H_BACKPORCH 48
-#define H_SYNCPULSE 96
-#define H_FRONTPORCH 16
-#define V_BACKPORCH 33
-#define V_SYNCPULSE 2
-#define V_FRONTPORCH 10
+#define RED_PIN PD4
+#define GREEN_PIN PD5
+#define BLUE_PIN PD6
 
-#define R_WIDTH (VGA_WIDTH + H_BACKPORCH + H_SYNCPULSE + H_FRONTPORCH)
-#define R_HEIGHT (VGA_HEIGHT + V_BACKPORCH + V_SYNCPULSE + V_FRONTPORCH)
+#define HSYNC_PIN PB2
+#define VSYNC_PIN PB0
 
-#define FONT_WIDTH 8
-#define FONT_HEIGHT 8
+#define horizontal_bytes 20
+#define vertical_pixels 480
 
-#define V_BACKPORCH_LINES 35
+#define vertical_lines (vertical_pixels/16)
+#define horizontal_pixels (horizontal_bytes*8)
 
-#define VERTICAL_LINES (VGA_HEIGHT/FONT_HEIGHT/2)
-#define HORIZONTAL_PIXELS (HORIZONTAL_BYTES*FONT_WIDTH)
+#define nop asm volatile ("nop\n\t");
 
-const uint16_t vertical_lines = (VGA_HEIGHT / FONT_HEIGHT / 2);
-const uint16_t horizontal_pixels = HORIZONTAL_BYTES*FONT_WIDTH;
-
-const uint16_t vertical_frontporchlines = R_HEIGHT - V_BACKPORCH_LINES;
+const uint8_t vertical_backporch_lines = 35;
 
 volatile uint16_t vline = 0;
 volatile uint16_t message_line = 0;
 volatile uint8_t backporch_lines_togo = 0;
 
-char message[VERTICAL_LINES][HORIZONTAL_BYTES];
+char message[vertical_lines][horizontal_bytes];
 
 uint8_t i;
 
@@ -55,23 +45,12 @@ ISR(TIMER2_COMP_vect) /* vertical pulses */
         
         vline = 0;
         message_line = 0;
-        backporch_lines_togo = V_BACKPORCH_LINES;
+        backporch_lines_togo = vertical_backporch_lines;
 }
 
 ISR(TIMER1_COMPA_vect) /* horizontal pulses */
 {
         sleep_disable();
-}
-
-void beep()
-{
-        int i;
-        for(i=0; i<300; ++i) {
-                PORTD |= (1 << PD6);
-                _delay_us(300);
-                PORTD &= ~(1 << PD6);
-                _delay_us(300);
-        }
 }
 
 void timer_init(void)
@@ -89,33 +68,6 @@ void timer_init(void)
 
         ICR1 = 47;
         OCR1B = 5;
-
-        sei();
-}
-
-void ioinit()
-{
-        timer_init();
-        //leds_init();
-        
-        DDRD |= (1 << PD6); // Buzzer
-        DDRB |= (1 << PB0) | (1 << PB1) | (1 << PB2) | (1 << PB3);
-
-        /* initialize uart */
-        DDRD |= (1 << PD1);
-        DDRD &= ~(1 << PD0);
-        PORTD |= (1 << PD0);
-
-        int ubrr_val = 255; 
-        UBRRH = 0;
-        UBRRL = 0;
-
-        PORTD |= (1 << PD4);
-        /* enable receiver and transmitter */
-        UCSRB = 0;
-        UCSRC |= (1 << UMSEL) | (1 << UCSZ0) | (1 << UCPOL);
-        
-        set_sleep_mode(SLEEP_MODE_IDLE);
 }
 
 void do_one_scan_line()
@@ -125,59 +77,63 @@ void do_one_scan_line()
                 return;
         }
 
-        if(vline >= vertical_lines)
+        if(vline >= vertical_pixels)
                 return;
 
-        const register uint8_t * line_ptr = &screen_font[(vline >> 1) & 0x07][0];
-        register char * message_ptr = &(message[message_line][0]);
 
-        uint8_t i = HORIZONTAL_BYTES;
+        const register uint8_t *line_ptr = &screen_font[(vline >> 1) & 0x07][0];
+        register char *message_ptr = &(message[message_line][0]);
+        
+        register uint8_t i = horizontal_bytes;
 
         UCSRB |= (1 << TXEN);
 
         while(i--) {
-                //usart_transmit(pgm_read_byte(line_ptr + (* message_ptr++)));
-                UDR = pgm_read_byte(line_ptr + (* message_ptr++));
+                //PORTD = *message_ptr++;
+                UDR = pgm_read_byte(line_ptr + (*message_ptr++));
         }
 
         while(!(UCSRA & (1 << TXC)))
         {}
 
-        UCSRB = 0;
+        UCSRB &= ~(1 << TXEN);
+
 
         vline++;
 
-        if((vline & 0x0F) == 0)
+        if((vline & 0xF) == 0)
                 message_line++;
 }
 
-void do_toggle_led()
+void ioinit()
 {
-        UCSRB |= (1 << TXEN);
-        UDR = 0xAA;
-        while(!(UCSRA & (1 << TXC)))
-        {}
-        UCSRB &= ~(1 << TXEN);
+        timer_init();
+        usart_init(0);
+        //leds_init();
+        
+        /* timer interrupt related pins */
+        DDRB |= (1 << PB0) | (1 << PB1) | (1 << PB2) | (1 << PB3); 
+        /* rgb pins */
+        //DDRD |= (1 << RED_PIN) | (1 << GREEN_PIN) | (1 << BLUE_PIN);
 
-        /*uint8_t j;
-        for(j = 0; j < 50; j++) {
-                PORTD |= (1 << PD7);
-                PORTD &= ~(1 << PD7);
-        }*/
+        set_sleep_mode(SLEEP_MODE_IDLE);
 }
-
 
 int main() 
 {
-        i = 0;
+        /* initial message */
+        int j;
+        for(j = 0; j < vertical_lines; j++)
+                sprintf(message[j], "%03i - hello!", i);
+
         ioinit();
-        _delay_us(500); // let settings settle
+        sei();
 
         while(1) {
-                //do_toggle_led();
+                //dummy_pulse();
                 do_one_scan_line();
-                sleep_cpu();
                 sleep_enable();
+                sleep_cpu();
         }
 
         return 1;
