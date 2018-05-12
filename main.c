@@ -7,6 +7,7 @@
 
 //#include "usart.h"
 #include "screenfont.h"
+#include "smallfont.h"
 
 #define F_CPU 12000000UL
 #define BAUD 9600UL
