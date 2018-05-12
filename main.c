@@ -7,9 +7,7 @@
 
 //#include "usart.h"
 #include "htw.h"
-
-#define F_CPU 12000000UL
-#define BAUD 9600UL
+#include "leds.h"
 
 #define RED_PIN PD4
 #define GREEN_PIN PD5
@@ -94,7 +92,7 @@ ISR(TIMER2_COMP_vect) /* vertical pulses */
         PORTB |= (1 << PB0);
         _delay_us(64);
         PORTB &= ~(1 << PB0);
-        count++;
+        leds_set(count++);
         if(count%6 == 0) {
                 pixel++;
                 if(pixel >= 30) {
@@ -172,7 +170,7 @@ void ioinit()
 {
         timer_init();
         //usart_init(0);
-        //leds_init();
+        leds_init();
         
         /* timer interrupt related pins */
         DDRB |= (1 << PB0) | (1 << PB1) | (1 << PB2) | (1 << PB3); 
