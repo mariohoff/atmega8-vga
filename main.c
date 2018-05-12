@@ -6,8 +6,7 @@
 #include <stdio.h>
 
 //#include "usart.h"
-#include "screenfont.h"
-#include "smallfont.h"
+#include "htw.h"
 
 #define F_CPU 12000000UL
 #define BAUD 9600UL
@@ -19,13 +18,16 @@
 #define HSYNC_PIN PB2
 #define VSYNC_PIN PB0
 
-#define horizontal_bytes 20
+#define horizontal_bytes 30
 #define vertical_pixels 480
 
 #define vertical_lines (vertical_pixels/16)
 #define horizontal_pixels (horizontal_bytes*8)
 
 #define nop asm volatile ("nop\n\t");
+
+/* offset to be ascii equal */
+#define FONT_OFFSET 35
 
 const uint8_t vertical_backporch_lines = 35;
 
@@ -36,6 +38,55 @@ volatile uint8_t backporch_lines_togo = 0;
 char message[vertical_lines][horizontal_bytes];
 
 uint8_t i;
+uint8_t pixel = 0;
+uint8_t count = 0;
+uint8_t colour = 0x70;
+uint8_t colourmode = 0;
+
+void switch_colour()
+{
+        switch(colourmode++) {
+                case 0:
+                        colour = 0x10;
+                        break;
+                case 1:
+                        colour = 0x20;
+                        break;
+                case 2:
+                        colour = 0x30;
+                        break;
+                case 3:
+                        colour = 0x40;
+                        break;
+                case 4:
+                        colour = 0x50;
+                        break;
+                case 5:
+                        colour = 0x60;
+                        break;
+                case 6:
+                        colour = 0x70;
+                        break;
+        }
+        if(colourmode > 6)
+                colourmode = 0;
+}
+
+void draw_picture()
+{
+        int x, y;
+        uint16_t xlimit = IMG_WIDTH;
+        uint16_t ylimit = IMG_HEIGHT;
+
+        for(y = 0; y < vertical_lines; y++) {
+                for(x = 0; x < horizontal_bytes; x++) {
+                        if(x < xlimit && y < ylimit && ((_img[x] >> y) & 1)) {
+                                message[y][x] = colour;
+                        }
+                }
+        }
+}
+
 
 ISR(TIMER2_COMP_vect) /* vertical pulses */
 {
@@ -43,7 +94,21 @@ ISR(TIMER2_COMP_vect) /* vertical pulses */
         PORTB |= (1 << PB0);
         _delay_us(64);
         PORTB &= ~(1 << PB0);
-        
+        count++;
+        if(count%6 == 0) {
+                pixel++;
+                if(pixel >= 30) {
+                        switch_colour();
+                        draw_picture();
+                        count = 0;
+                        pixel = 0;
+                        message[20][29] = 0x0;
+                } else {
+                        message[20][pixel-1] = 0x00;
+                }
+                message[20][pixel] = 0x80 - colour;;
+        }
+
         vline = 0;
         message_line = 0;
         backporch_lines_togo = vertical_backporch_lines;
@@ -84,22 +149,19 @@ void do_one_scan_line()
 
         //const register uint8_t *line_ptr = &screen_font[(vline >> 1) & 0x07][0];
         register char *message_ptr = &(message[message_line][0]);
+        _delay_us(1);
         
         register uint8_t i = horizontal_bytes;
 
-        //UCSRB |= (1 << TXEN);
-
         while(i--) {
                 PORTD = *message_ptr++;
-                //UDR = pgm_read_byte(line_ptr + (*message_ptr++));
         }
 
-        /*while(!(UCSRA & (1 << TXC)))
-        {}
+        nop; nop; nop;
 
-        UCSRB &= ~(1 << TXEN);*/
+        PORTD = 0;
 
-
+        
         vline++;
 
         if((vline & 0xF) == 0)
@@ -122,16 +184,7 @@ void ioinit()
 
 int main() 
 {
-        /* initial message */
-        int x,y;
-        /*for(j = 0; j < vertical_lines; j++)
-                sprintf(message[j], "%03i - hello!", i);*/
-        for(y = 0; y < vertical_lines; y++) {
-                for(x = 0; x < horizontal_bytes; x++) {
-                        message[y][x] = (x+y) << 4;
-                }
-        }
-
+        draw_picture();
 
         ioinit();
         sei();
