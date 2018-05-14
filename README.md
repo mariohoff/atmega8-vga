@@ -13,10 +13,15 @@ I will try to get VGA working on a atmega8 running on 12Mhz. Not sure if this is
 ## Pin Connections
 
 desc => atmega8 => vga dsub
+
 vertical pulse => PB 0 => pin 14
+
 horizontal pulse => PB2 => pin 13
+
 red => PD6 => pin 1
+
 green => PD5 => pin 2
+
 blue => PD4 => pin 3
 
 See picture for pinout
